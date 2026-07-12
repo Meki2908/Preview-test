@@ -15,21 +15,22 @@ public class GameManager : MonoBehaviour
     private GameObject currentPlayer;
     [HideInInspector] public bool isGameOver = false;
 
-    // Event để báo cho các class khác biết restart
+    public bool HasGameOverPanel => gameOverPanel != null;
+
     public static event System.Action OnRestart;
 
     private void Awake()
     {
-        // Singleton
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
             return;
         }
+
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        SceneManager.sceneLoaded += OnSceneLoaded;
 
-        // Sửa lỗi dấu ngoặc: nếu không có ngoặc {} thì chỉ dòng đầu thuộc if
         if (gameOverPanel != null)
         {
             isGameOver = false;
@@ -37,10 +38,83 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
     private void Start()
     {
+        SetupPlayerForCurrentScene();
+    }
+
+    /// <summary>Gọi từ MainMenu khi bấm Play — reset score/health state trước khi load Level 1.</summary>
+    public void ResetPlayerData()
+    {
+        Time.timeScale = 1f;
+        isGameOver = false;
+
+        HideGameOverPanel(clearReference: false);
+
+        if (overMusic != null)
+            overMusic.Stop();
+
+        PlayerTarget.Clear();
+        OnRestart?.Invoke();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.buildIndex == GameSceneIndex.Menu)
+        {
+            PrepareForMenuScene();
+            return;
+        }
+
+        Time.timeScale = 1f;
+        isGameOver = false;
+
+        SetupPlayerForCurrentScene();
+        HealthBar.RefreshAll();
+    }
+
+    /// <summary>Reset UI/state khi về Menu — tránh panel game over / timeScale sót lại.</summary>
+    public void PrepareForMenuScene()
+    {
+        Time.timeScale = 1f;
+        isGameOver = false;
+        CursorController.ShowCursor();
+
+        if (overMusic != null)
+            overMusic.Stop();
+
+        HideGameOverPanel(clearReference: true);
+
+        if (MenuSettingsOverlay.Instance != null)
+            MenuSettingsOverlay.Instance.Close();
+    }
+
+    private void HideGameOverPanel(bool clearReference)
+    {
+        if (gameOverPanel == null)
+            return;
+
+        gameOverPanel.SetActive(false);
+
+        if (clearReference)
+            gameOverPanel = null;
+    }
+
+    private void SetupPlayerForCurrentScene()
+    {
+        if (SceneManager.GetActiveScene().buildIndex == GameSceneIndex.Menu)
+            return;
+
         if (!TryUseScenePlayer())
             SpawnPlayer();
+
+        HealthBar.RefreshAll();
     }
 
     private bool TryUseScenePlayer()
@@ -78,20 +152,39 @@ public class GameManager : MonoBehaviour
         {
             currentPlayer = playerSpawner.SpawnPlayer();
             if (currentPlayer != null)
-                PlayerTarget.Register(currentPlayer.transform);
+                UseExistingPlayer(currentPlayer);
         }
         else
-            Debug.LogWarning("PlayerSpawner chưa được gán trong GameManager!");
+            Debug.LogWarning("PlayerSpawner chưa được gán trong GameManager!", this);
+    }
+
+    /// <summary>Đăng ký Lost Panel từ MainGame Canvas khi load level (GameManager là DontDestroyOnLoad).</summary>
+    public void RegisterGameOverUI(GameObject panel, TextMeshProUGUI scoreLabel = null)
+    {
+        if (panel == null)
+            return;
+
+        gameOverPanel = panel;
+
+        if (scoreLabel != null)
+            scoreText = scoreLabel;
+
+        if (!isGameOver)
+            gameOverPanel.SetActive(false);
     }
 
     public void GameOver(int score)
     {
-        if (isGameOver) return;
+        if (isGameOver)
+            return;
 
         isGameOver = true;
 
-        if (themeMusic != null) themeMusic.Stop();
-        if (overMusic != null) overMusic.Play();
+        if (themeMusic != null)
+            themeMusic.Stop();
+
+        if (overMusic != null)
+            overMusic.Play();
 
         if (gameOverPanel != null)
             gameOverPanel.SetActive(true);
@@ -107,49 +200,41 @@ public class GameManager : MonoBehaviour
 
     public void Restart()
     {
-        if (gameOverPanel != null)
-            gameOverPanel.SetActive(false);
+        HideGameOverPanel(clearReference: false);
 
-        if (overMusic != null) overMusic.Stop();
+        if (overMusic != null)
+            overMusic.Stop();
 
-        isGameOver = false;
-        Time.timeScale = 1f;
-
-        PlayerTarget.Clear();
-
-        // Gọi sự kiện reset trước khi load scene
-        OnRestart?.Invoke();
+        ResetPlayerData();
 
         if (currentPlayer != null)
+        {
             Destroy(currentPlayer);
+            currentPlayer = null;
+        }
 
-        // Load lại scene gameplay → sau khi load xong sẽ tự Spawn lại player ở Start()
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void MainMenu()
     {
-        if (gameOverPanel != null)
-            gameOverPanel.SetActive(false);
-
-        if (overMusic != null) overMusic.Stop();
-
-        isGameOver = false;
-        Time.timeScale = 1f;
-
-        SceneManager.LoadScene("MenuScene");
+        ResetPlayerData();
+        SceneManager.LoadScene(GameSceneIndex.Menu);
     }
+
     public void SpawnNewPlayer()
     {
         if (currentPlayer != null)
             Destroy(currentPlayer);
 
+        if (playerSpawner == null)
+        {
+            Debug.LogWarning("SpawnNewPlayer: playerSpawner null", this);
+            return;
+        }
+
         currentPlayer = playerSpawner.SpawnPlayer();
         if (currentPlayer != null)
-            PlayerTarget.Register(currentPlayer.transform);
-
-        TopDownCinemachineCamera topDownCamera = FindAnyObjectByType<TopDownCinemachineCamera>();
-        if (topDownCamera != null && currentPlayer != null)
-            topDownCamera.SetFollowTarget(CameraTargetAnchor.GetOrCreate(currentPlayer.transform));
+            UseExistingPlayer(currentPlayer);
     }
 }

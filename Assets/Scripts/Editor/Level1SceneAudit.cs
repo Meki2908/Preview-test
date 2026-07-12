@@ -7,7 +7,7 @@ using UnityEngine.UI;
 public static class Level1SceneAudit
 {
     private const string ScenePath = "Assets/Scenes/Level 1.unity";
-    private const string CanvasPrefabPath = "Assets/Prefabs/Canvas.prefab";
+    private const string CanvasPrefabPath = "Assets/Prefabs/MainGame Canvas.prefab";
 
     [MenuItem("Tools/Level 1/Audit Scene Setup")]
     public static void AuditScene()

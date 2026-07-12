@@ -8,6 +8,14 @@ public class Grenade : MonoBehaviour
     private float countdown;
     private bool hasExploded;
 
+    [Header("Proximity Detonation")]
+    [SerializeField] private bool useProximityDetonation = true;
+    [SerializeField, Min(0.1f)] private float detectionRadius = 1.5f;
+    [SerializeField] private LayerMask enemyLayer = ~0;
+    [SerializeField, Min(0f)] private float settleDelayAfterBounce = 0.35f;
+    [SerializeField, Min(0.01f)] private float stoppedSpeed = 0.35f;
+    [SerializeField, Min(0.02f)] private float proximityCheckInterval = 0.1f;
+
     [Header("Explosion Stats")]
     [SerializeField] public float radius = 5f;
     [SerializeField] private float force = 500f;
@@ -15,6 +23,17 @@ public class Grenade : MonoBehaviour
 
     [Header("FX")]
     [SerializeField] private GameObject explosionEffect;
+
+    private readonly Collider[] proximityResults = new Collider[16];
+    private Rigidbody body;
+    private bool hasBounced;
+    private float firstBounceTime;
+    private float nextProximityCheckTime;
+
+    private void Awake()
+    {
+        body = GetComponent<Rigidbody>();
+    }
 
     private void Start()
     {
@@ -28,11 +47,22 @@ public class Grenade : MonoBehaviour
 
         countdown -= Time.deltaTime;
         if (countdown <= 0f)
+        {
             TriggerExplode();
+            return;
+        }
+
+        CheckProximityDetonation();
     }
 
     private void OnCollisionEnter(Collision collision)
     {
+        if (!hasBounced)
+        {
+            hasBounced = true;
+            firstBounceTime = Time.time;
+        }
+
         if (ShouldExplodeOnContact(collision.collider))
             TriggerExplode();
     }
@@ -45,17 +75,54 @@ public class Grenade : MonoBehaviour
         if (col.CompareTag("Player"))
             return false;
 
-        if (col.CompareTag("Enemy") || col.CompareTag("Wall") || col.CompareTag("Ground") || col.CompareTag("Headhitbox"))
+        if (col.CompareTag("Enemy") || col.CompareTag("Headhitbox"))
             return true;
 
         if (col.GetComponentInParent<EnemyBase>() != null)
             return true;
 
-        // Tường / sàn không gắn tag: collider tĩnh (không trigger)
-        if (!col.isTrigger && col.attachedRigidbody == null)
-            return true;
-
         return false;
+    }
+
+    private void CheckProximityDetonation()
+    {
+        if (!useProximityDetonation
+            || !hasBounced
+            || Time.time < firstBounceTime + settleDelayAfterBounce
+            || Time.time < nextProximityCheckTime)
+        {
+            return;
+        }
+
+        nextProximityCheckTime = Time.time + proximityCheckInterval;
+
+        if (body != null && body.linearVelocity.sqrMagnitude > stoppedSpeed * stoppedSpeed)
+            return;
+
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            detectionRadius,
+            proximityResults,
+            enemyLayer,
+            QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider col = proximityResults[i];
+            if (col == null)
+                continue;
+
+            EnemyBase enemy = col.GetComponentInParent<EnemyBase>();
+            if (enemy == null || enemy.IsDeathInProgress || enemy.IsDeathComplete)
+                continue;
+
+            Health health = enemy.GetComponent<Health>();
+            if (health != null && !health.IsDead)
+            {
+                TriggerExplode();
+                return;
+            }
+        }
     }
 
     private void TriggerExplode()
@@ -103,5 +170,11 @@ public class Grenade : MonoBehaviour
         }
 
         Destroy(gameObject);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = new Color(1f, 0.35f, 0.05f, 0.6f);
+        Gizmos.DrawWireSphere(transform.position, detectionRadius);
     }
 }

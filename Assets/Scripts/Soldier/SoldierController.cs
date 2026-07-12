@@ -6,6 +6,10 @@ public class SoldierController : MonoBehaviour
     [Header("Movement Settings")]
     public float moveSpeed = 5f;
 
+    [Header("Gravity")]
+    [SerializeField] private float gravity = -9.81f;
+    [SerializeField] private float groundedStickForce = -2f;
+
     [Header("Virtual Joysticks")]
     public Terresquall.VirtualJoystick leftJoystick;
     public Terresquall.VirtualJoystick rightJoystick; // Chỉ dùng để xoay mặt / ngắm (twin-stick)
@@ -13,6 +17,7 @@ public class SoldierController : MonoBehaviour
     private CharacterController characterController;
     private Animator animator;
     private PlayerHealth playerHealth;
+    private Vector3 verticalVelocity;
 
     public Terresquall.VirtualJoystick LeftJoystick => leftJoystick;
     public Terresquall.VirtualJoystick RightJoystick => rightJoystick;
@@ -55,10 +60,9 @@ public class SoldierController : MonoBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
-        if (!InputEnabled)
-            return;
+        if (InputEnabled)
+            HandleAiming();
 
-        HandleAiming();
         HandleMovement();
     }
 
@@ -72,21 +76,29 @@ public class SoldierController : MonoBehaviour
 
     private void HandleMovement()
     {
-        Vector2 input = LeftAxis;
+        Vector2 input = InputEnabled ? LeftAxis : Vector2.zero;
         Vector3 inputDir = new Vector3(input.x, 0f, input.y);
 
-        // Di chuyển nhân vật: kéo joystick nhẹ = chậm, kéo max = nhanh
+        Vector3 horizontalMove = Vector3.zero;
+        float currentSpeed = 0f;
+        Vector3 worldMoveDir = Vector3.zero;
+
         if (inputDir.magnitude > 0.1f)
         {
             float speedFactor = Mathf.Clamp01(inputDir.magnitude);
-            characterController.Move(inputDir.normalized * moveSpeed * speedFactor * Time.deltaTime);
+            horizontalMove = inputDir.normalized * moveSpeed * speedFactor;
+            currentSpeed = speedFactor;
+            worldMoveDir = inputDir.normalized;
         }
 
-        // Hướng tương đối so với mặt của Soldier để blend animation 8 hướng
-        float currentSpeed = Mathf.Clamp01(inputDir.magnitude);
-        Vector3 worldMoveDir = currentSpeed > 0.1f ? inputDir.normalized : Vector3.zero;
-        Vector3 localMoveDir = transform.InverseTransformDirection(worldMoveDir);
+        if (characterController.isGrounded && verticalVelocity.y < 0f)
+            verticalVelocity.y = groundedStickForce;
 
+        verticalVelocity.y += gravity * Time.deltaTime;
+
+        characterController.Move((horizontalMove + verticalVelocity) * Time.deltaTime);
+
+        Vector3 localMoveDir = transform.InverseTransformDirection(worldMoveDir);
         animator.SetFloat("Speed", currentSpeed > 0.1f ? currentSpeed : 0f);
         animator.SetFloat("MoveX", localMoveDir.x);
         animator.SetFloat("MoveZ", localMoveDir.z);

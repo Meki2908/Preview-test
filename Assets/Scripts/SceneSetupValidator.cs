@@ -1,7 +1,8 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Đảm bảo Canvas có HealthUIBootstrap khi vào Play.
+/// Đảm bảo Canvas có HealthUIBootstrap khi vào Play / mỗi lần load level.
 /// </summary>
 public class SceneSetupValidator : MonoBehaviour
 {
@@ -18,7 +19,22 @@ public class SceneSetupValidator : MonoBehaviour
     private void Awake()
     {
         DontDestroyOnLoad(gameObject);
+        SceneManager.sceneLoaded += OnSceneLoaded;
         EnsureCanvasHealthUi();
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.buildIndex == GameSceneIndex.Menu)
+            return;
+
+        EnsureCanvasHealthUi();
+        HealthBar.RefreshAll();
     }
 
     private void EnsureCanvasHealthUi()

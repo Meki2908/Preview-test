@@ -42,6 +42,7 @@ public class GrenadeJoystick : MonoBehaviour
             lastAxis = joystick.GetAxis();
             soldierShooting.SetGrenadeAiming(true);
             RotateTowardAim(lastAxis);
+            PreviewThrow(lastAxis);
         }
         else if (wasHeld)
         {
@@ -53,6 +54,15 @@ public class GrenadeJoystick : MonoBehaviour
         wasHeld = isHeld;
     }
 
+    private void OnDisable()
+    {
+        wasHeld = false;
+        lastAxis = Vector2.zero;
+
+        if (soldierShooting != null)
+            soldierShooting.SetGrenadeAiming(false);
+    }
+
     private void RotateTowardAim(Vector2 axis)
     {
         Vector3 aimDir = new Vector3(axis.x, 0f, axis.y);
@@ -62,6 +72,19 @@ public class GrenadeJoystick : MonoBehaviour
         Quaternion targetRotation = Quaternion.LookRotation(aimDir.normalized, Vector3.up);
         Transform target = soldierController != null ? soldierController.transform : soldierShooting.transform;
         target.rotation = Quaternion.RotateTowards(target.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+    }
+
+    private void PreviewThrow(Vector2 axis)
+    {
+        float magnitude = axis.magnitude;
+        if (magnitude < minThrowMagnitude)
+        {
+            soldierShooting.PreviewGrenadeThrow(Vector3.zero, 0f);
+            return;
+        }
+
+        Vector3 throwDir = new Vector3(axis.x, 0f, axis.y);
+        soldierShooting.PreviewGrenadeThrow(throwDir, magnitude);
     }
 
     private void TryThrow(Vector2 axis)

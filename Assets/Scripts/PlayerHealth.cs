@@ -58,6 +58,12 @@ public class PlayerHealth : MonoBehaviour
         GameManager.OnRestart -= ResetHealth;
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void TakeDamage(int damage)
     {
         if (isDead)

@@ -60,6 +60,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     public bool IsDeathInProgress { get; private set; }
     public bool IsDeathComplete { get; private set; }
+    public event System.Action<EnemyBase> OnEnemyDeath;
 
     private void OnEnable()
     {
@@ -663,6 +664,16 @@ public abstract class EnemyBase : MonoBehaviour
         {
             Debug.LogError($"[DEATH] OnDeath lỗi trên {name}: {exception}", this);
             IsDeathInProgress = false;
+            return;
+        }
+
+        try
+        {
+            OnEnemyDeath?.Invoke(this);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogError($"[DEATH] OnEnemyDeath listener lỗi trên {name}: {exception}", this);
         }
     }
 

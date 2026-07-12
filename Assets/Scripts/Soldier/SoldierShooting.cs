@@ -21,7 +21,9 @@ public class SoldierShooting : MonoBehaviour
     [SerializeField] private Transform grenadeSpawnPoint;
     [SerializeField] private float minThrowForce = 6f;
     [SerializeField] private float maxThrowForce = 22f;
+    [SerializeField] private float upwardThrowImpulse = 7.5f;
     [SerializeField] private float grenadeCooldown = 1.5f;
+    [SerializeField] private GrenadeTrajectoryPreview grenadeTrajectoryPreview;
 
     private static readonly int ShootHash = Animator.StringToHash("Shoot");
     private static readonly int WeaponTypeHash = Animator.StringToHash("WeaponType");
@@ -46,6 +48,7 @@ public class SoldierShooting : MonoBehaviour
     {
         soldier = GetComponent<SoldierController>();
         bodyAnimator = GetComponent<Animator>();
+        EnsureGrenadeTrajectoryPreview();
 
         if (weaponHolder == null)
         {
@@ -146,6 +149,30 @@ public class SoldierShooting : MonoBehaviour
     public void SetGrenadeAiming(bool aiming)
     {
         isGrenadeAiming = aiming;
+        if (!aiming)
+            grenadeTrajectoryPreview?.Hide();
+    }
+
+    public void PreviewGrenadeThrow(Vector3 worldDirection, float pullMagnitude)
+    {
+        if (isDead || grenadePrefab == null)
+        {
+            grenadeTrajectoryPreview?.Hide();
+            return;
+        }
+
+        if (worldDirection.sqrMagnitude < 0.01f)
+        {
+            grenadeTrajectoryPreview?.Hide();
+            return;
+        }
+
+        EnsureGrenadeTrajectoryPreview();
+
+        Transform spawn = grenadeSpawnPoint != null ? grenadeSpawnPoint : transform;
+        float throwForce = Mathf.Lerp(minThrowForce, maxThrowForce, Mathf.Clamp01(pullMagnitude));
+        Vector3 launchVelocity = CalculateGrenadeLaunchVelocity(worldDirection, throwForce);
+        grenadeTrajectoryPreview.Show(spawn.position, launchVelocity);
     }
 
     /// <summary>Thả grenade joystick: lưu hướng/lực rồi chạy animation ném.</summary>
@@ -179,14 +206,49 @@ public class SoldierShooting : MonoBehaviour
         GameObject grenade = Instantiate(grenadePrefab, spawn.position, Quaternion.LookRotation(pendingThrowDirection, Vector3.up));
 
         if (grenade.TryGetComponent<Rigidbody>(out Rigidbody rb))
-            rb.AddForce(pendingThrowDirection * pendingThrowForce, ForceMode.Impulse);
+        {
+            Vector3 impulse = GetGrenadeImpulse(pendingThrowDirection, pendingThrowForce);
+            rb.AddForce(impulse, ForceMode.Impulse);
+        }
 
         hasPendingThrow = false;
+        grenadeTrajectoryPreview?.Hide();
     }
 
     public void SetDead(bool dead)
     {
         isDead = dead;
+        if (dead)
+            grenadeTrajectoryPreview?.Hide();
+    }
+
+    private void EnsureGrenadeTrajectoryPreview()
+    {
+        if (grenadeTrajectoryPreview == null)
+            grenadeTrajectoryPreview = GetComponent<GrenadeTrajectoryPreview>();
+        if (grenadeTrajectoryPreview == null)
+            grenadeTrajectoryPreview = gameObject.AddComponent<GrenadeTrajectoryPreview>();
+
+        grenadeTrajectoryPreview.Configure(transform);
+    }
+
+    private Vector3 CalculateGrenadeLaunchVelocity(Vector3 worldDirection, float throwForce)
+    {
+        float mass = 1f;
+        if (grenadePrefab != null && grenadePrefab.TryGetComponent<Rigidbody>(out Rigidbody prefabBody))
+            mass = Mathf.Max(0.01f, prefabBody.mass);
+
+        return GetGrenadeImpulse(worldDirection, throwForce) / mass;
+    }
+
+    private Vector3 GetGrenadeImpulse(Vector3 worldDirection, float throwForce)
+    {
+        Vector3 horizontalDirection = Vector3.ProjectOnPlane(worldDirection, Vector3.up);
+        if (horizontalDirection.sqrMagnitude < 0.01f)
+            horizontalDirection = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+
+        horizontalDirection.Normalize();
+        return horizontalDirection * throwForce + Vector3.up * upwardThrowImpulse;
     }
 
     private int GetWeaponTypeForGun(GunBase gun)

@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class HealthBar : MonoBehaviour
@@ -19,6 +20,19 @@ public class HealthBar : MonoBehaviour
         loggedMissingFill = false;
     }
 
+    public static void RefreshAll()
+    {
+        HealthBar[] bars = FindObjectsByType<HealthBar>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < bars.Length; i++)
+            bars[i].Refresh();
+    }
+
+    public void Refresh()
+    {
+        UnbindPlayerHealth();
+        BindPlayerHealth();
+    }
+
     private void Awake()
     {
         if (healthFill == null)
@@ -37,23 +51,31 @@ public class HealthBar : MonoBehaviour
         }
     }
 
-    private void Start()
-    {
-        BindPlayerHealth();
-    }
-
     private void OnEnable()
     {
+        SceneManager.sceneLoaded += OnSceneLoaded;
         BindPlayerHealth();
     }
 
     private void OnDisable()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
         UnbindPlayerHealth();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.buildIndex == GameSceneIndex.Menu)
+            return;
+
+        Refresh();
     }
 
     private void Update()
     {
+        if (playerHealth == null)
+            BindPlayerHealth();
+
         if (!smoothDamageLerp || healthFill == null)
             return;
 
@@ -111,4 +133,3 @@ public class HealthBar : MonoBehaviour
             healthFill.fillAmount = ratio;
     }
 }
-
