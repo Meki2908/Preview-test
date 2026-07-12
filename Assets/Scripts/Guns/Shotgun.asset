@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e712f5e0ac7ed8749b36eeab82c6284d, type: 3}
+  m_Name: Shotgun
+  m_EditorClassIdentifier: 
+  weaponName: Shotgun
+  magSize: 40
+  maxAmmo: 8
+  fireRate: 1
+  reloadTime: 3
+  bulletSpeed: -50
+  damage: 150
+  bulletPrefab: {fileID: 7502600674591035686, guid: a1a763400b0ce084487ae63f34e3d0ef, type: 3}
+  shootSound: {fileID: 8300000, guid: 57acc706ffbba0549b782ad98ee38f8e, type: 3}
+  reloadSound: {fileID: 8300000, guid: b27e45e9f54264440a4818872c8702f0, type: 3}
+  muzzleFlashPrefab: {fileID: 1743301284569550, guid: ad2ab49d0a2a17148bd51c93d977bdbc, type: 3}
+  bloodFX: {fileID: 9184517762731899508, guid: 0a94dc045e4d1cb40b9ac52fe796d400, type: 3}
+  bulletTracerPrefab: {fileID: 0, guid: 415a74e118256b6469b62a439b5bb547, type: 3}
+  isHitscan: 1
+  icon: {fileID: 853108057, guid: f040ad7c5a4ddda4395896a780b6db6b, type: 3}

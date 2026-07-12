@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e712f5e0ac7ed8749b36eeab82c6284d, type: 3}
+  m_Name: MachineGun
+  m_EditorClassIdentifier: 
+  weaponName: MachineGun
+  magSize: 600
+  maxAmmo: 120
+  fireRate: 0.1
+  reloadTime: 3.5
+  bulletSpeed: -80
+  damage: 100
+  bulletPrefab: {fileID: 1057448177759222513, guid: 641d4c582fd553d47a6e39b5dc3588e5, type: 3}
+  shootSound: {fileID: 8300000, guid: 0f671448654b6b64dbe7c58c351a78df, type: 3}
+  reloadSound: {fileID: 8300000, guid: 76d0dccbe0e905c429fb06b6bf1b3aac, type: 3}
+  muzzleFlashPrefab: {fileID: 1743301284569550, guid: ad2ab49d0a2a17148bd51c93d977bdbc, type: 3}
+  bloodFX: {fileID: 9184517762731899508, guid: 0a94dc045e4d1cb40b9ac52fe796d400, type: 3}
+  bulletTracerPrefab: {fileID: 0, guid: 415a74e118256b6469b62a439b5bb547, type: 3}
+  isHitscan: 1
+  icon: {fileID: 207722312, guid: f040ad7c5a4ddda4395896a780b6db6b, type: 3}
