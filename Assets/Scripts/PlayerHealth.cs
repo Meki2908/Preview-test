@@ -8,12 +8,16 @@ public class PlayerHealth : MonoBehaviour
 
     [SerializeField] private int maxHealth = 100;
     [SerializeField] private float deathAnimationDuration = 3f;
+    [SerializeField] private float reviveWaitDuration = 1.2f;
+    [SerializeField] private float invulnerabilityDuration = 2f;
     [SerializeField] private GameObject bloodEffectPrefab;
 
     public UnityEvent<int, int> OnHealthChanged;
 
     private int currentHealth;
     private bool isDead;
+    private bool isInvulnerable;
+    private Coroutine deathSequenceRoutine;
 
     private static readonly int DieHash = Animator.StringToHash("Die");
     private static readonly int DieTypeHash = Animator.StringToHash("Die_Type");
@@ -66,7 +70,7 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(int damage)
     {
-        if (isDead)
+        if (isDead || isInvulnerable)
             return;
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
@@ -79,22 +83,77 @@ public class PlayerHealth : MonoBehaviour
 
     public void Heal(int healAmount)
     {
-        if (isDead) return;
+        if (isDead)
+            return;
+
         currentHealth = Mathf.Min(currentHealth + healAmount, maxHealth);
         NotifyHealthChanged();
     }
 
     private void Die()
     {
-        if (isDead) return;
-        isDead = true;
+        if (isDead)
+            return;
 
+        isDead = true;
         DisableSoldierGameplay();
 
         if (TryGetComponent<Animator>(out Animator animator))
             PlayDeathAnimation(animator);
 
-        StartCoroutine(HandleDeathSequence());
+        if (deathSequenceRoutine != null)
+            StopCoroutine(deathSequenceRoutine);
+
+        deathSequenceRoutine = StartCoroutine(HandleDeathSequence());
+    }
+
+    public void Revive()
+    {
+        isDead = false;
+        currentHealth = maxHealth;
+        NotifyHealthChanged();
+        EnableSoldierGameplay();
+
+        if (TryGetComponent<Animator>(out Animator animator))
+        {
+            animator.Rebind();
+            animator.Update(0f);
+        }
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.isGameOver = false;
+
+        if (invulnerabilityRoutine != null)
+            StopCoroutine(invulnerabilityRoutine);
+
+        invulnerabilityRoutine = StartCoroutine(InvulnerabilityRoutine());
+    }
+
+    private Coroutine invulnerabilityRoutine;
+
+    private IEnumerator InvulnerabilityRoutine()
+    {
+        isInvulnerable = true;
+
+        SkinnedMeshRenderer meshRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
+        float elapsed = 0f;
+        bool visible = true;
+
+        while (elapsed < invulnerabilityDuration)
+        {
+            visible = !visible;
+            if (meshRenderer != null)
+                meshRenderer.enabled = visible;
+
+            yield return new WaitForSeconds(0.2f);
+            elapsed += 0.2f;
+        }
+
+        if (meshRenderer != null)
+            meshRenderer.enabled = true;
+
+        isInvulnerable = false;
+        invulnerabilityRoutine = null;
     }
 
     private void DisableSoldierGameplay()
@@ -120,6 +179,31 @@ public class PlayerHealth : MonoBehaviour
 
         if (TryGetComponent<CharacterController>(out CharacterController controller))
             controller.enabled = false;
+    }
+
+    private void EnableSoldierGameplay()
+    {
+        Transform weaponHolder = transform.Find("WeaponHolder");
+        if (weaponHolder != null)
+            weaponHolder.gameObject.SetActive(true);
+
+        if (TryGetComponent<CharacterController>(out CharacterController controller))
+            controller.enabled = true;
+
+        if (TryGetComponent<SoldierController>(out SoldierController soldier))
+        {
+            soldier.enabled = true;
+            soldier.SetInputEnabled(true);
+        }
+
+        if (TryGetComponent<SoldierShooting>(out SoldierShooting shooting))
+        {
+            shooting.SetDead(false);
+            shooting.enabled = true;
+        }
+
+        if (TryGetComponent<FootstepController>(out FootstepController footsteps))
+            footsteps.enabled = true;
     }
 
     private void PlayDeathAnimation(Animator animator)
@@ -167,12 +251,22 @@ public class PlayerHealth : MonoBehaviour
 
     private IEnumerator HandleDeathSequence()
     {
-        yield return new WaitForSeconds(deathAnimationDuration);
+        bool canRevive = GameManager.Instance != null && GameManager.Instance.HasLifeRemaining();
+        float waitDuration = canRevive ? reviveWaitDuration : deathAnimationDuration;
+        yield return new WaitForSeconds(waitDuration);
 
-        int finalScore = ScoreManager.Instance != null ? ScoreManager.Instance.CurrentScore : 0;
+        if (GameManager.Instance != null && GameManager.Instance.TryConsumeLifeForRevive())
+        {
+            Revive();
+            deathSequenceRoutine = null;
+            Debug.Log($"[REVIVE] Player hồi sinh. Mạng còn: {GameManager.Instance.CurrentLives}");
+            yield break;
+        }
+
         if (GameManager.Instance != null)
-            GameManager.Instance.GameOver(finalScore);
+            GameManager.Instance.GameOver();
 
+        deathSequenceRoutine = null;
         Destroy(gameObject);
     }
 
@@ -188,9 +282,34 @@ public class PlayerHealth : MonoBehaviour
 
     public void ResetHealth()
     {
-        currentHealth = maxHealth;
+        if (deathSequenceRoutine != null)
+        {
+            StopCoroutine(deathSequenceRoutine);
+            deathSequenceRoutine = null;
+        }
+
+        if (invulnerabilityRoutine != null)
+        {
+            StopCoroutine(invulnerabilityRoutine);
+            invulnerabilityRoutine = null;
+        }
+
+        isInvulnerable = false;
         isDead = false;
+        currentHealth = maxHealth;
         NotifyHealthChanged();
+        EnableSoldierGameplay();
+
+        SkinnedMeshRenderer meshRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
+        if (meshRenderer != null)
+            meshRenderer.enabled = true;
+
+        if (TryGetComponent<Animator>(out Animator animator))
+        {
+            animator.Rebind();
+            animator.Update(0f);
+        }
+
         if (GameManager.Instance != null)
             GameManager.Instance.isGameOver = false;
     }
@@ -200,4 +319,3 @@ public class PlayerHealth : MonoBehaviour
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 }
-

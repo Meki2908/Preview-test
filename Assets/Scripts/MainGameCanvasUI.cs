@@ -30,6 +30,7 @@ public static class MainGameCanvasUI
         "SettingsPanel",
         "Pause Panel",
         "Lost Panel",
+        "Victory Panel",
         "Record",
         "Records",
         "Record Panel",
@@ -121,7 +122,8 @@ public static class MainGameCanvasUI
 
         return FindChild(canvas.transform, "Pause Button") != null
             || FindChild(canvas.transform, "Pause Panel") != null
-            || FindChild(canvas.transform, "Lost Panel") != null;
+            || FindChild(canvas.transform, "Lost Panel") != null
+            || FindChild(canvas.transform, "Victory Panel") != null;
     }
 
     public static void ConfigureSettingsOnlyMode(Transform canvasRoot, Action onBack)
@@ -162,8 +164,73 @@ public static class MainGameCanvasUI
 
         WireButton(pauseButtonObject.GetComponent<Button>(), ingameUi.TogglePause);
         WirePausePanel(pausePanel.transform, ingameUi);
+        WireDebugWinButton(canvasRoot, ingameUi);
         WireSettingsPanel(settingsPanel, ingameUi.CloseSettings);
         WireLostPanel(canvasRoot);
+        WireVictoryPanel(canvasRoot);
+    }
+
+    public static void RetryBindVictoryPanels()
+    {
+        VictoryPanel[] panels = UnityEngine.Object.FindObjectsByType<VictoryPanel>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+
+        for (int i = 0; i < panels.Length; i++)
+            panels[i].BindToGameManager();
+    }
+
+    public static bool HasVictoryPanelInScene()
+    {
+        Canvas[] canvases = UnityEngine.Object.FindObjectsByType<Canvas>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+
+        for (int i = 0; i < canvases.Length; i++)
+        {
+            if (FindChild(canvases[i].transform, "Victory Panel") != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void WireVictoryPanel(Transform canvasRoot)
+    {
+        GameObject victoryPanel = FindChild(canvasRoot, "Victory Panel");
+        if (victoryPanel == null)
+            return;
+
+        PrepareVictoryPanelObject(victoryPanel);
+
+        VictoryPanel controller = GetOrAdd<VictoryPanel>(victoryPanel);
+        Transform root = victoryPanel.transform;
+
+        WireButton(GetButton(root, "Play Again") ?? GetButton(root, "Play Again Button"), controller.PlayAgain);
+        WireButton(GetButton(root, "Menu") ?? GetButton(root, "Menu Button"), controller.Menu);
+
+        controller.BindToGameManager();
+        victoryPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Dọn Victory Panel sau khi duplicate từ Lost Panel (runtime + editor repair).
+    /// </summary>
+    public static void PrepareVictoryPanelObject(GameObject victoryPanel)
+    {
+        if (victoryPanel == null)
+            return;
+
+        LostPanel staleLostPanel = victoryPanel.GetComponent<LostPanel>();
+        if (staleLostPanel != null)
+            UnityEngine.Object.Destroy(staleLostPanel);
+
+        GetOrAdd<VictoryPanel>(victoryPanel);
+        victoryPanel.transform.SetAsLastSibling();
+
+        Button[] buttons = victoryPanel.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+            buttons[i].onClick = new Button.ButtonClickedEvent();
     }
 
     public static void RetryBindLostPanels()
@@ -216,6 +283,24 @@ public static class MainGameCanvasUI
         WireButton(GetButton(pausePanel, "Menu"), menuController.Menu);
     }
 
+    private static void WireDebugWinButton(Transform canvasRoot, IngameUI ingameUi)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Button debugWinBtn = GetButton(canvasRoot, "Debug Win Button");
+        if (debugWinBtn == null)
+            return;
+
+        WireButton(debugWinBtn, () =>
+        {
+            if (ingameUi != null && ingameUi.IsPaused)
+                ingameUi.Continue();
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.DebugAdvanceLevel();
+        });
+#endif
+    }
+
     public static void WireSettingsPanel(GameObject settingsPanel, Action onBack)
     {
         if (settingsPanel == null)
@@ -238,9 +323,10 @@ public static class MainGameCanvasUI
 
     private static void WireButton(Button button, UnityEngine.Events.UnityAction action)
     {
-        if (button == null || action == null || button.onClick.GetPersistentEventCount() > 0)
+        if (button == null || action == null)
             return;
 
+        button.onClick.RemoveAllListeners();
         button.onClick.AddListener(action);
     }
 

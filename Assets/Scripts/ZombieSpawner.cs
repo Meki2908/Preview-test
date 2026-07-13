@@ -395,6 +395,7 @@ public class ZombieSpawner : MonoBehaviour
             CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 1f;
         }
 
         GameObject textObject = new GameObject("WaveMessageText", typeof(RectTransform), typeof(TextMeshProUGUI));

@@ -10,17 +10,43 @@ public class GameManager : MonoBehaviour
     [SerializeField] private AudioSource themeMusic;
     [SerializeField] private AudioSource overMusic;
     [SerializeField] private GameObject gameOverPanel;
-    [SerializeField] private TextMeshProUGUI scoreText;
+
+    [Header("Victory UI")]
+    [SerializeField] private GameObject victoryPanel;
+
+    [Header("Lives")]
+    [SerializeField] private int maxLives = 3;
+    [SerializeField] private int currentLives = 3;
+
+    private TextMeshProUGUI livesText;
+
+    public int CurrentLives => currentLives;
+    public int MaxLives => maxLives;
+
+    [Header("Cursor")]
+    [Tooltip("Tắt nếu cần dùng chuột với Virtual Joystick (Editor/test). Bật cho cảm giác PC thuần.")]
+    [SerializeField] private bool hideCursorDuringGameplay = true;
+
+    public bool HideCursorDuringGameplay => hideCursorDuringGameplay;
+
+    public void SetHideCursorDuringGameplay(bool hide)
+    {
+        hideCursorDuringGameplay = hide;
+        CursorController.SetHideDuringGameplay(hide);
+    }
 
     private GameObject currentPlayer;
     [HideInInspector] public bool isGameOver = false;
 
     public bool HasGameOverPanel => gameOverPanel != null;
+    public bool HasVictoryPanel => victoryPanel != null;
 
     public static event System.Action OnRestart;
 
     private void Awake()
     {
+        ApplyMobileLandscapeLock();
+
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -30,11 +56,18 @@ public class GameManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         SceneManager.sceneLoaded += OnSceneLoaded;
+        CursorController.SetHideDuringGameplay(hideCursorDuringGameplay);
 
         if (gameOverPanel != null)
         {
             isGameOver = false;
             gameOverPanel.SetActive(false);
+        }
+
+        if (victoryPanel != null)
+        {
+            isGameOver = false;
+            victoryPanel.SetActive(false);
         }
     }
 
@@ -49,23 +82,59 @@ public class GameManager : MonoBehaviour
         SetupPlayerForCurrentScene();
     }
 
-    /// <summary>Gọi từ MainMenu khi bấm Play — reset score/health state trước khi load Level 1.</summary>
+    /// <summary>Gọi từ MainMenu khi bấm Play — reset state trước khi load Level 1.</summary>
     public void ResetPlayerData()
     {
         Time.timeScale = 1f;
         isGameOver = false;
 
         HideGameOverPanel(clearReference: false);
+        HideVictoryPanel(clearReference: false);
 
         if (overMusic != null)
             overMusic.Stop();
 
         PlayerTarget.Clear();
+        currentLives = maxLives;
+        UpdateLivesUI();
         OnRestart?.Invoke();
+    }
+
+    public void RegisterLivesUI(TextMeshProUGUI textUI)
+    {
+        if (textUI == null)
+            return;
+
+        livesText = textUI;
+        UpdateLivesUI();
+    }
+
+    public void UpdateLivesUI()
+    {
+        if (livesText != null)
+            livesText.text = "x" + currentLives;
+    }
+
+    /// <summary>Trừ 1 mạng và cho phép revive. Trả về false nếu hết mạng.</summary>
+    public bool TryConsumeLifeForRevive()
+    {
+        if (currentLives <= 0)
+            return false;
+
+        currentLives--;
+        UpdateLivesUI();
+        return true;
+    }
+
+    public bool HasLifeRemaining()
+    {
+        return currentLives > 0;
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        ApplyMobileLandscapeLock();
+
         if (scene.buildIndex == GameSceneIndex.Menu)
         {
             PrepareForMenuScene();
@@ -75,8 +144,12 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
         isGameOver = false;
 
+        HideVictoryPanel(clearReference: false);
+        CursorController.ApplyGameplayCursor();
+
         SetupPlayerForCurrentScene();
         HealthBar.RefreshAll();
+        UpdateLivesUI();
     }
 
     /// <summary>Reset UI/state khi về Menu — tránh panel game over / timeScale sót lại.</summary>
@@ -90,6 +163,7 @@ public class GameManager : MonoBehaviour
             overMusic.Stop();
 
         HideGameOverPanel(clearReference: true);
+        HideVictoryPanel(clearReference: true);
 
         if (MenuSettingsOverlay.Instance != null)
             MenuSettingsOverlay.Instance.Close();
@@ -104,6 +178,17 @@ public class GameManager : MonoBehaviour
 
         if (clearReference)
             gameOverPanel = null;
+    }
+
+    private void HideVictoryPanel(bool clearReference)
+    {
+        if (victoryPanel == null)
+            return;
+
+        victoryPanel.SetActive(false);
+
+        if (clearReference)
+            victoryPanel = null;
     }
 
     private void SetupPlayerForCurrentScene()
@@ -159,26 +244,35 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>Đăng ký Lost Panel từ MainGame Canvas khi load level (GameManager là DontDestroyOnLoad).</summary>
-    public void RegisterGameOverUI(GameObject panel, TextMeshProUGUI scoreLabel = null)
+    public void RegisterGameOverUI(GameObject panel)
     {
         if (panel == null)
             return;
 
         gameOverPanel = panel;
 
-        if (scoreLabel != null)
-            scoreText = scoreLabel;
-
         if (!isGameOver)
             gameOverPanel.SetActive(false);
     }
 
-    public void GameOver(int score)
+    public void RegisterVictoryUI(GameObject panel)
+    {
+        if (panel == null)
+            return;
+
+        victoryPanel = panel;
+
+        if (!isGameOver)
+            victoryPanel.SetActive(false);
+    }
+
+    public void GameOver()
     {
         if (isGameOver)
             return;
 
         isGameOver = true;
+        HideVictoryPanel(clearReference: false);
 
         if (themeMusic != null)
             themeMusic.Stop();
@@ -187,10 +281,10 @@ public class GameManager : MonoBehaviour
             overMusic.Play();
 
         if (gameOverPanel != null)
+        {
+            BringOverlayToFront(gameOverPanel);
             gameOverPanel.SetActive(true);
-
-        if (scoreText != null)
-            scoreText.text = "Final Score: " + score;
+        }
 
         CursorController.ShowCursor();
         Time.timeScale = 0f;
@@ -198,9 +292,33 @@ public class GameManager : MonoBehaviour
         Debug.Log("Game Over");
     }
 
+    public void Victory()
+    {
+        if (isGameOver)
+            return;
+
+        isGameOver = true;
+        HideGameOverPanel(clearReference: false);
+
+        if (themeMusic != null)
+            themeMusic.Stop();
+
+        if (victoryPanel != null)
+        {
+            BringOverlayToFront(victoryPanel);
+            victoryPanel.SetActive(true);
+        }
+
+        CursorController.ShowCursor();
+        Time.timeScale = 0f;
+
+        Debug.Log("VICTORY TRIGGERED!");
+    }
+
     public void Restart()
     {
         HideGameOverPanel(clearReference: false);
+        HideVictoryPanel(clearReference: false);
 
         if (overMusic != null)
             overMusic.Stop();
@@ -214,6 +332,25 @@ public class GameManager : MonoBehaviour
         }
 
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void RestartCampaign()
+    {
+        HideGameOverPanel(clearReference: false);
+        HideVictoryPanel(clearReference: false);
+
+        if (overMusic != null)
+            overMusic.Stop();
+
+        ResetPlayerData();
+
+        if (currentPlayer != null)
+        {
+            Destroy(currentPlayer);
+            currentPlayer = null;
+        }
+
+        SceneManager.LoadScene(GameSceneIndex.Level1);
     }
 
     public void MainMenu()
@@ -236,5 +373,44 @@ public class GameManager : MonoBehaviour
         currentPlayer = playerSpawner.SpawnPlayer();
         if (currentPlayer != null)
             UseExistingPlayer(currentPlayer);
+    }
+
+    /// <summary>
+    /// Debug: Level 1 → load Level 2. Level 2 → Victory panel (test end game).
+    /// </summary>
+    public void DebugAdvanceLevel()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Time.timeScale = 1f;
+
+        int sceneIndex = SceneManager.GetActiveScene().buildIndex;
+        if (sceneIndex == GameSceneIndex.Level1)
+        {
+            SceneManager.LoadScene(GameSceneIndex.Level2);
+            return;
+        }
+
+        if (sceneIndex == GameSceneIndex.Level2)
+            Victory();
+#endif
+    }
+
+    private static void ApplyMobileLandscapeLock()
+    {
+#if UNITY_ANDROID || UNITY_IOS
+        Screen.autorotateToPortrait = false;
+        Screen.autorotateToPortraitUpsideDown = false;
+        Screen.autorotateToLandscapeLeft = true;
+        Screen.autorotateToLandscapeRight = true;
+        Screen.orientation = ScreenOrientation.LandscapeLeft;
+#endif
+    }
+
+    private static void BringOverlayToFront(GameObject panel)
+    {
+        if (panel == null)
+            return;
+
+        panel.transform.SetAsLastSibling();
     }
 }

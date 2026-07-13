@@ -50,6 +50,7 @@ public static class MenuSceneBootstrap
         mainMenu.HideAllPanels();
         DeactivateLegacyPanel("Sound Settings");
         DeactivateLegacyPanel("Lost Panel");
+        DeactivateLegacyPanel("Victory Panel");
 
         WireOnce(MainGameCanvasUI.FindMenuButtonInActiveScene("Play", "Play Button"), controller.StartGame);
         WireOnce(MainGameCanvasUI.FindMenuButtonInActiveScene("Start", "Start Button"), controller.StartGame);

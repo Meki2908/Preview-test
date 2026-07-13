@@ -134,7 +134,6 @@ public class Runner : EnemyBase
         if (audioSource != null && clipDie != null)
             audioSource.PlayOneShot(clipDie);
 
-        ScoreManager.Instance?.AddScore(100);
         base.OnDeath();
     }
 

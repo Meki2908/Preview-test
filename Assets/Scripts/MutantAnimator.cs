@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.AI;
 
 /// <summary>
-/// Drive Mutant zombie.controller: Speed (base layer), Attack / Swipe (upper body).
+/// Drive Mutant zombie.controller: Speed (idle vs moving), IsEnraged (walk vs run),
+/// Attack / Swipe (upper body).
 /// </summary>
 [DisallowMultipleComponent]
 public class MutantAnimator : MonoBehaviour
@@ -13,14 +14,14 @@ public class MutantAnimator : MonoBehaviour
     [SerializeField] private string swipeStateName = "Mutant zombie swipe";
     [SerializeField] private float attackEndNormalizedTime = 0.92f;
 
-    [Header("Locomotion blend (Speed parameter)")]
-    [SerializeField] private float walkAnimSpeed = 0.5f;
-    [SerializeField] private float runAnimSpeed = 1f;
+    [Header("Locomotion (Speed = stopped vs moving)")]
+    [SerializeField] private float movingSpeedValue = 1f;
     [SerializeField] private float stopSpeedEpsilon = 0.05f;
     [SerializeField] private float speedDampTime = 0.12f;
 
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int IdleTypeHash = Animator.StringToHash("Idle_Type");
+    private static readonly int IsEnragedHash = Animator.StringToHash("IsEnraged");
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int SwipeHash = Animator.StringToHash("Swipe");
 
@@ -32,6 +33,7 @@ public class MutantAnimator : MonoBehaviour
     public bool IsSwiping { get; private set; }
     public bool IsPunching { get; private set; }
     public bool IsInAttackAnimation => IsSwiping || IsPunching;
+    public bool IsEnraged { get; private set; }
 
     private void Awake()
     {
@@ -51,6 +53,16 @@ public class MutantAnimator : MonoBehaviour
         agent.updatePosition = true;
         agent.updateRotation = false;
         agent.autoBraking = true;
+    }
+
+    public void SetEnraged(bool enraged)
+    {
+        IsEnraged = enraged;
+
+        if (animator == null)
+            return;
+
+        animator.SetBool(IsEnragedHash, enraged);
     }
 
     public void SetLocomotionEnabled(bool enabled)
@@ -122,7 +134,7 @@ public class MutantAnimator : MonoBehaviour
             return;
         }
 
-        // Punch trên upper body: chân base layer vẫn blend Speed bình thường.
+        // Punch trên upper body: chân base layer vẫn dùng Speed (idle vs moving).
         float targetSpeed = CalculateTargetAnimSpeed();
         animator.SetFloat(SpeedHash, targetSpeed, speedDampTime, Time.deltaTime);
 
@@ -142,13 +154,7 @@ public class MutantAnimator : MonoBehaviour
         if (movementSpeed <= stopSpeedEpsilon)
             return 0f;
 
-        float referenceSpeed = Mathf.Max(agent.speed, 0.1f);
-        float normalized = Mathf.Clamp01(movementSpeed / referenceSpeed);
-
-        if (normalized < 0.35f)
-            return walkAnimSpeed;
-
-        return Mathf.Lerp(walkAnimSpeed, runAnimSpeed, Mathf.InverseLerp(0.35f, 1f, normalized));
+        return movingSpeedValue;
     }
 
     private float MeasureMovementSpeed()

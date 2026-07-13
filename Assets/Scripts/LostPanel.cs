@@ -1,4 +1,3 @@
-using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -9,8 +8,7 @@ public class LostPanel : MonoBehaviour
         if (GameManager.Instance == null)
             return;
 
-        TextMeshProUGUI scoreLabel = FindScoreText();
-        GameManager.Instance.RegisterGameOverUI(gameObject, scoreLabel);
+        GameManager.Instance.RegisterGameOverUI(gameObject);
     }
 
     public void Retry()
@@ -31,33 +29,5 @@ public class LostPanel : MonoBehaviour
             GameManager.Instance.MainMenu();
         else
             SceneManager.LoadScene(GameSceneIndex.Menu);
-    }
-
-    private TextMeshProUGUI FindScoreText()
-    {
-        string[] names = { "Score Text", "Final Score", "Score" };
-        Transform[] children = GetComponentsInChildren<Transform>(true);
-        for (int n = 0; n < names.Length; n++)
-        {
-            for (int i = 0; i < children.Length; i++)
-            {
-                if (!children[i].name.Equals(names[n], System.StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (children[i].TryGetComponent(out TextMeshProUGUI label))
-                    return label;
-            }
-        }
-
-        TextMeshProUGUI[] labels = GetComponentsInChildren<TextMeshProUGUI>(true);
-        for (int i = 0; i < labels.Length; i++)
-        {
-            if (labels[i].transform == transform)
-                continue;
-
-            return labels[i];
-        }
-
-        return null;
     }
 }

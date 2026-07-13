@@ -15,6 +15,13 @@ public class GunBase : MonoBehaviour
     [SerializeField] private float hitscanRange = 100f;
     [SerializeField] private LayerMask hitscanMask = ~0;
 
+    [Header("Smart Aim (top-down slope assist)")]
+    [SerializeField] private bool aimAssistEnabled = true;
+    [SerializeField] private float aimAssistRadius = 2.5f;
+    [SerializeField] private bool requireLineOfSight = true;
+
+    private static readonly RaycastHit[] AimAssistHitBuffer = new RaycastHit[32];
+
     [Header("Gun data")]
     public GunData gunData;
     public Transform firePoint;
@@ -134,6 +141,7 @@ public class GunBase : MonoBehaviour
             direction = transform.forward;
 
         direction.Normalize();
+        direction = CalculateAimAssistDirection(direction);
 
         if (gunData.isHitscan)
             FireRaycast(direction);
@@ -172,6 +180,96 @@ public class GunBase : MonoBehaviour
             firePoint.position,
             Quaternion.LookRotation(direction, Vector3.up));
         ConfigureSpawnedBullet(bullet, direction);
+    }
+
+    protected Vector3 CalculateAimAssistDirection(Vector3 flatDirection)
+    {
+        if (!aimAssistEnabled || flatDirection.sqrMagnitude < 0.001f)
+            return flatDirection;
+
+        Transform originTransform = firePoint != null ? firePoint : transform;
+        Vector3 origin = originTransform.position;
+        Vector3 scanDirection = flatDirection.normalized;
+
+        int hitCount = Physics.SphereCastNonAlloc(
+            origin,
+            aimAssistRadius,
+            scanDirection,
+            AimAssistHitBuffer,
+            hitscanRange,
+            hitscanMask,
+            QueryTriggerInteraction.Collide);
+
+        Collider bestCollider = null;
+        float closestDistance = float.MaxValue;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider col = AimAssistHitBuffer[i].collider;
+            if (col == null || !IsValidAimAssistTarget(col))
+                continue;
+
+            float distance = AimAssistHitBuffer[i].distance;
+            if (distance >= closestDistance)
+                continue;
+
+            closestDistance = distance;
+            bestCollider = col;
+        }
+
+        if (bestCollider == null)
+            return scanDirection;
+
+        Vector3 targetCenter = GetAimAssistPoint(bestCollider);
+        if (requireLineOfSight && !HasClearLineOfSight(origin, targetCenter, bestCollider))
+            return scanDirection;
+
+        Vector3 assistedDirection = targetCenter - origin;
+        return assistedDirection.sqrMagnitude > 0.001f
+            ? assistedDirection.normalized
+            : scanDirection;
+    }
+
+    private static bool IsValidAimAssistTarget(Collider col)
+    {
+        if (col.GetComponent<Hitbox>() != null)
+            return !IsDeadCollider(col);
+
+        return col.GetComponentInParent<EnemyBase>() != null && !IsDeadCollider(col);
+    }
+
+    private static bool IsDeadCollider(Collider col)
+    {
+        Health health = col.GetComponentInParent<Health>();
+        return health != null && health.IsDead;
+    }
+
+    private static Vector3 GetAimAssistPoint(Collider col)
+    {
+        EnemyBase enemy = col.GetComponentInParent<EnemyBase>();
+        if (enemy != null)
+        {
+            Collider bodyCollider = enemy.GetComponentInChildren<Collider>();
+            if (bodyCollider != null)
+                return bodyCollider.bounds.center;
+        }
+
+        return col.bounds.center;
+    }
+
+    private bool HasClearLineOfSight(Vector3 origin, Vector3 targetCenter, Collider targetCollider)
+    {
+        Vector3 toTarget = targetCenter - origin;
+        float distance = toTarget.magnitude;
+        if (distance <= 0.01f)
+            return true;
+
+        if (!Physics.Raycast(origin, toTarget / distance, out RaycastHit block, distance, hitscanMask, QueryTriggerInteraction.Collide))
+            return true;
+
+        Transform targetRoot = targetCollider.transform.root;
+        return block.collider.transform.root == targetRoot
+            || block.collider.transform.IsChildOf(targetRoot);
     }
 
     protected void FireRaycast(Vector3 direction)

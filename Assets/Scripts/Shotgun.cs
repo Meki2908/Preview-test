@@ -36,7 +36,10 @@ public class Shotgun : GunBase
         if (direction.sqrMagnitude < 0.001f)
             direction = transform.forward;
 
-        Quaternion aimRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        direction.Normalize();
+        direction = CalculateAimAssistDirection(direction);
+
+        Quaternion aimRotation = Quaternion.LookRotation(direction, Vector3.up);
 
         for (int i = 0; i < pelletCount; i++)
         {

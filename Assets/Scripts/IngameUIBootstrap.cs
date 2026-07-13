@@ -86,14 +86,45 @@ public sealed class IngameUIBootstrap : MonoBehaviour
             yield break;
         }
 
-        if (!MainGameCanvasUI.HasLostPanelInScene())
+        bool needsLost = MainGameCanvasUI.HasLostPanelInScene();
+        bool needsVictory = MainGameCanvasUI.HasVictoryPanelInScene();
+
+        if (!needsLost && !needsVictory)
             yield break;
 
         for (int attempt = 0; attempt < 30; attempt++)
         {
-            MainGameCanvasUI.RetryBindLostPanels();
-            if (GameManager.Instance != null && GameManager.Instance.HasGameOverPanel)
+            if (needsLost)
+                MainGameCanvasUI.RetryBindLostPanels();
+
+            if (needsVictory)
+                MainGameCanvasUI.RetryBindVictoryPanels();
+
+            bool lostReady = !needsLost
+                || (GameManager.Instance != null && GameManager.Instance.HasGameOverPanel);
+            bool victoryReady = !needsVictory
+                || (GameManager.Instance != null && GameManager.Instance.HasVictoryPanel);
+
+            if (lostReady && victoryReady)
                 yield break;
+
+            yield return null;
+        }
+
+        for (int attempt = 0; attempt < 15; attempt++)
+        {
+            LivesUI[] livesLabels = FindObjectsByType<LivesUI>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+
+            for (int i = 0; i < livesLabels.Length; i++)
+                livesLabels[i].BindToGameManager();
+
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.UpdateLivesUI();
+                yield break;
+            }
 
             yield return null;
         }
@@ -113,6 +144,8 @@ public sealed class IngameUIBootstrap : MonoBehaviour
             {
                 continue;
             }
+
+            MainGameCanvasMobileLayout.Apply(root);
 
             IngameUI ingameUi = GetOrAdd<IngameUI>(root.gameObject);
             MainGameCanvasUI.WireIngameCanvas(root, ingameUi);

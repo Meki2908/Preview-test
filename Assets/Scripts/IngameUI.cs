@@ -17,7 +17,7 @@ public class IngameUI : MonoBehaviour
 
     private void Start()
     {
-        CursorController.HideCursor();
+        CursorController.ApplyGameplayCursor();
         Time.timeScale = 1f;
         SetPanelsActive(false, false);
     }
@@ -58,8 +58,10 @@ public class IngameUI : MonoBehaviour
         SetPanelsActive(isPaused, false);
 
         Time.timeScale = isPaused ? 0 : 1;
-        if (isPaused) CursorController.ShowCursor();
-        else CursorController.HideCursor();
+        if (isPaused)
+            CursorController.ShowCursor();
+        else
+            CursorController.ApplyGameplayCursor();
     }
 
     public void Continue()

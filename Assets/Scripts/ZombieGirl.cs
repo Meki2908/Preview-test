@@ -108,7 +108,6 @@ public class ZombieGirl : EnemyBase
         Debug.Log($"[DEATH] ZombieGirl.OnDeath() {name}", this);
         isDead = true;
         StopHitboxWindow();
-        ScoreManager.Instance?.AddScore(50);
         base.OnDeath();
     }
 
